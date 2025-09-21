@@ -1,0 +1,648 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Cosmic Surprise — A Tiny Gift</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Friendly rounded font -->
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;700;800&display=swap" rel="stylesheet">
+
+  <!-- Firebase JavaScript SDK (11.6.1) -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+    import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+    import { getFirestore, doc, getDoc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+    // Global variables (provided by the environment)
+    const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+    const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+    const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    const auth = getAuth(app);
+
+    // Function to handle authentication and view count update
+    async function setupViewCount() {
+      try {
+        if (initialAuthToken) {
+          await signInWithCustomToken(auth, initialAuthToken);
+        } else {
+          await signInAnonymously(auth);
+        }
+
+        const viewCountDocRef = doc(db, `/artifacts/${appId}/public/data/views/page_views`);
+        
+        // Listen for real-time updates to the document
+        onSnapshot(viewCountDocRef, (docSnap) => {
+          let views = 0;
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            views = data.count || 0;
+          }
+
+          // Update the UI
+          const viewCounterElement = document.getElementById('view-counter');
+          if (viewCounterElement) {
+            viewCounterElement.textContent = views;
+          }
+        });
+
+        // Increment the view count on every page load
+        const docSnap = await getDoc(viewCountDocRef);
+        let currentViews = 0;
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          currentViews = data.count || 0;
+        }
+
+        // Set the new count
+        await setDoc(viewCountDocRef, { count: currentViews + 1 });
+
+      } catch (error) {
+        console.error("Error with Firestore operations:", error);
+      }
+    }
+
+    // Call the function when the window loads
+    window.addEventListener('load', setupViewCount);
+  </script>
+
+  <!-- -------------------------
+      Inline CSS (single-file)
+      ------------------------- -->
+  <style>
+    /* Root theme colors */
+    :root{
+      --bg-top: #050512;
+      --bg-bottom: #0b0f1a;
+      --accent: #ff6b9f;
+      --muted: #9aa6c0;
+      --card: rgba(255,255,255,0.02);
+    }
+
+    /* Basic page */
+    html,body,#app {
+      height: 100%;
+      margin: 0;
+      font-family: 'Nunito', system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      background: linear-gradient(180deg, var(--bg-top) 0%, var(--bg-bottom) 100%);
+      color: #eef2ff;
+    }
+
+    /* Starfield canvas sits under everything */
+    #starfield {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+      pointer-events: none; /* clicks go through */
+    }
+
+    /* subtle cosmic vignette & sparkles overlay */
+    .vignette::after{
+      content:'';
+      position:absolute;
+      inset:0;
+      background:
+        radial-gradient(ellipse at 15% 20%, rgba(255,80,130,0.02) 0%, transparent 12%),
+        radial-gradient(ellipse at 85% 85%, rgba(100,120,255,0.02) 0%, transparent 12%),
+        linear-gradient(transparent, rgba(0,0,0,0.45));
+      pointer-events:none;
+      z-index:0;
+    }
+
+    /* main stage */
+    .stage {
+      position: relative;
+      z-index: 5;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+
+    /* content card/panel */
+    .panel {
+      width: 100%;
+      max-width: 820px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border: 1px solid rgba(255,255,255,0.04);
+      box-shadow: 0 12px 40px rgba(2,6,23,0.7);
+      border-radius: 16px;
+      padding: 2rem;
+      position: relative;
+      backdrop-filter: blur(6px);
+    }
+
+    /* small sparkle decorations */
+    .sparkle {
+      position:absolute;
+      border-radius:50%;
+      width:8px;height:8px;
+      filter: blur(0.8px);
+      opacity: .95;
+      background: radial-gradient(circle at 30% 30%, white 0%, rgba(255,255,255,0.5) 25%, transparent 45%);
+      pointer-events:none;
+    }
+
+    /* cute pulsing emoji/character */
+    .pulse {
+      animation: pulse 1.2s infinite cubic-bezier(.36,.07,.19,.97);
+      transform-origin: center;
+    }
+    @keyframes pulse {
+      0% { transform: scale(1); opacity:.96 }
+      50% { transform: scale(1.12); opacity:1 }
+      100% { transform: scale(1); opacity:.96 }
+    }
+    
+    .sticker-img {
+      width: 120px;
+      height: 120px;
+    }
+
+    .sticker-img.pulse {
+      animation: pulse 1.2s infinite cubic-bezier(.36,.07,.19,.97);
+    }
+
+    /* screen transitions - each stage is a .screen */
+    .screen {
+      transition: transform .45s cubic-bezier(.2,.9,.3,1), opacity .35s ease;
+    }
+    .screen.hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: translateY(12px) scale(.995);
+    }
+
+    /* smaller adjustments on mobile */
+    @media (max-width:640px){
+      .panel { padding: 1.25rem; border-radius: 12px; }
+    }
+
+    /* "No" button special - absolute positioning inside consent container */
+    .no-btn {
+      position: absolute;
+      transform: translate(0,0);
+      transition: transform 140ms ease;
+      will-change: transform;
+    }
+
+    /* video frame styling */
+    .video-frame {
+      border-radius: 14px;
+      overflow: hidden;
+      border: 6px solid rgba(0,0,0,0.6);
+      box-shadow: 0 8px 30px rgba(0,0,0,0.7);
+      max-width:100%;
+      width:720px;
+      height:405px;
+      background: #000;
+    }
+    @media (max-width:640px){
+      .video-frame { width:92vw; height: calc(92vw * 9 / 16); }
+    }
+
+    /* small floating animation for charm */
+    .floaty { animation: floaty 6s ease-in-out infinite; }
+    @keyframes floaty {
+      0% { transform: translateY(0px) }
+      50% { transform: translateY(-6px) }
+      100% { transform: translateY(0px) }
+    }
+
+    .muted { color: var(--muted); }
+    .accent { color: var(--accent); }
+
+    .view-counter-container {
+      position: fixed;
+      top: 1rem;
+      right: 1rem;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      padding: 0.5rem 1rem;
+      border-radius: 9999px;
+      font-size: 0.875rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      backdrop-filter: blur(5px);
+    }
+
+  </style>
+</head>
+<body class="vignette">
+
+  <!-- Starfield Canvas -->
+  <canvas id="starfield" aria-hidden="true"></canvas>
+
+  <!-- View Counter Display -->
+  <div class="view-counter-container">
+    <span class="text-sm">Views:</span>
+    <span id="view-counter" class="text-white">...</span>
+  </div>
+
+  <!-- App root -->
+  <main id="app" class="stage">
+    <!-- Welcome Screen -->
+    <section id="welcomeScreen" class="panel screen">
+      <div class="flex flex-col items-center text-center gap-5">
+        <!-- Sticker for this step -->
+        <img id="sticker-1" class="sticker-img pulse" src="s1.png" alt="Welcome sticker" onerror="this.onerror=null; this.src='https://placehold.co/120x120/000000/FFFFFF?text=Sticker'">
+
+        <h1 class="text-3xl sm:text-4xl font-extrabold">I have a little surprise for you!</h1>
+        <p class="muted max-w-xl">A small cozy moment waiting in the stars — but first, tell me you're ready ✨</p>
+
+        <button id="nextBtn" class="mt-3 px-8 py-3 rounded-full bg-gradient-to-r from-[#ff6b9f] to-[#ff8ca6] text-white font-semibold shadow-lg hover:scale-[1.02] active:scale-[0.99] transition-all">
+          Next
+        </button>
+      </div>
+    </section>
+
+    <!-- Consent Screen -->
+    <section id="consentScreen" class="panel screen hidden" aria-hidden="true">
+      <div class="relative">
+        <div class="flex flex-col items-center text-center gap-4">
+          <!-- Sticker for this step -->
+          <img id="sticker-2" class="sticker-img" src="s2.png" alt="Consent sticker" onerror="this.onerror=null; this.src='https://placehold.co/120x120/000000/FFFFFF?text=Sticker'">
+
+          <h2 class="text-2xl font-bold">Ready for a surprise?</h2>
+          <p class="muted">Make sure you're comfortable and ready to enjoy a tiny delight.</p>
+
+          <!-- Buttons container: "Yes" & playful "No" -->
+          <div class="mt-5 w-full max-w-md">
+            <div id="consentButtons" class="relative flex items-center justify-center gap-6 p-6 rounded-lg bg-[rgba(255,255,255,0.01)] border border-white/5">
+              <!-- Yes button is normal -->
+              <button id="yesBtn" class="px-6 py-2 rounded-full bg-[#3b82f6] text-white font-semibold shadow hover:scale-[1.02] transition">Yes</button>
+
+              <!-- No button is positioned absolutely and will dodge -->
+              <button id="noBtn" class="no-btn px-5 py-2 rounded-full border border-white/8 text-white font-semibold bg-transparent shadow-sm">No</button>
+            </div>
+
+            <p class="mt-3 text-sm muted text-center">(Try hovering over "No" — if you dare 😄)</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- "No" instruction modal -->
+    <div id="noModal" class="fixed inset-0 z-40 hidden items-center justify-center" aria-hidden="true" role="dialog" aria-modal="true">
+      <div class="absolute inset-0 bg-black/60"></div>
+      <div class="relative z-50 w-full max-w-md p-6 rounded-xl bg-[rgba(255,255,255,0.02)] border border-white/6 shadow-lg text-center">
+        <!-- Sticker for the modal -->
+        <img class="sticker-img mx-auto mb-4 floaty" src="s3.png" alt="Modal sticker" onerror="this.onerror=null; this.src='https://placehold.co/120x120/000000/FFFFFF?text=Sticker'">
+        <h3 class="text-xl font-bold">Oops! You'll need to be ready for this one.</h3>
+        <p class="mt-3 muted">This surprise needs you to be prepared. Come back when you're ready to enjoy it fully.</p>
+        <div class="mt-6 flex justify-end">
+          <button id="gotItBtn" class="px-5 py-2 rounded-full bg-gradient-to-r from-[#ff6b9f] to-[#ff8ca6] text-white font-semibold">Got it!</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- "Get Closer" Screen -->
+    <section id="closerScreen" class="panel screen hidden" aria-hidden="true">
+      <div class="flex flex-col items-center text-center gap-6">
+        <!-- Sticker for this step -->
+        <img id="sticker-4" class="sticker-img floaty" src="s4.png" alt="Closer sticker" onerror="this.onerror=null; this.src='https://placehold.co/120x120/000000/FFFFFF?text=Sticker'">
+
+        <h2 id="closerMsg" class="text-2xl font-bold">Come a little closer <span class="accent">👋</span></h2>
+        <p class="muted max-w-lg">Lean in a bit — the reveal is a tiny, delightful video made for you.</p>
+
+        <div id="closerButtons" class="flex gap-4">
+          <button id="closerBtn1" class="px-6 py-2 rounded-full bg-[#6ee7b7] text-black font-semibold shadow hover:scale-[1.02] transition">I'm closer</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Final Reveal Screen -->
+    <section id="finalScreen" class="panel screen hidden" aria-hidden="true">
+      <div class="flex flex-col items-center text-center gap-5">
+        <!-- Sticker for the final step -->
+        <img id="sticker-5" class="sticker-img pulse" src="s6.png" alt="Final surprise sticker" onerror="this.onerror=null; this.src='https://placehold.co/120x120/000000/FFFFFF?text=Sticker'">
+
+        <h2 class="text-2xl font-bold">Alright, your wait is over! Here's your surprise <span class="accent">🎁</span></h2>
+        <p class="muted">Click Reveal to enjoy a tiny, cozy surprise — it's cute and short.</p>
+
+        <button id="revealBtn" class="mt-2 px-8 py-3 rounded-full bg-gradient-to-r from-[#7c3aed] to-[#4f46e5] text-white font-semibold shadow hover:scale-[1.02] transition">Reveal</button>
+
+        <!-- Player area (hidden until reveal) -->
+        <div class="mt-4 video-wrap hidden" id="playerWrap" aria-hidden="true">
+          <div class="video-frame" id="videoFrame" role="region" aria-label="surprise video">
+            <!-- We will set the video source via JS when Reveal is clicked -->
+            <video id="videoPlayer" class="w-full h-full" controls playsinline>
+                <source src="sirji.mp4" type="video/mp4">
+                Your browser does not support the video tag.
+            </video>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Decorative sparkles -->
+    <div class="sparkle" style="left:8%; top:18%;"></div>
+    <div class="sparkle" style="left:82%; top:10%; width:10px;height:10px; opacity:.9"></div>
+    <div class="sparkle" style="left:46%; top:74%; opacity:.7"></div>
+  </main>
+
+  <!-- -------------------------
+      Inline JavaScript (single-file)
+      ------------------------- -->
+  <script>
+    /*************************************************************************
+      * Single-file app JavaScript
+      * - Controls screen transitions
+      * - Implements playful "No" button that dodges until the user clicks Yes
+      * - Shows modal for No clicks
+      * - Two-step "closer" flow
+      * - Final reveal with HTML video embed (autoplay and unmuted)
+      * - Simple starfield canvas for background
+      *
+      * All functions are commented for clarity.
+      *************************************************************************/
+
+    /* ---------------------
+      DOM references
+      --------------------- */
+    const welcomeScreen = document.getElementById('welcomeScreen');
+    const consentScreen = document.getElementById('consentScreen');
+    const closerScreen  = document.getElementById('closerScreen');
+    const finalScreen   = document.getElementById('finalScreen');
+
+    const nextBtn = document.getElementById('nextBtn');
+    const yesBtn  = document.getElementById('yesBtn');
+    const noBtn   = document.getElementById('noBtn');
+
+    const noModal = document.getElementById('noModal');
+    const gotItBtn = document.getElementById('gotItBtn');
+
+    const closerMsg = document.getElementById('closerMsg');
+    const closerButtons = document.getElementById('closerButtons');
+    const closerBtn1 = document.getElementById('closerBtn1');
+
+    const revealBtn = document.getElementById('revealBtn');
+    const playerWrap = document.getElementById('playerWrap');
+    const videoPlayer = document.getElementById('videoPlayer');
+
+    const sticker4 = document.getElementById('sticker-4');
+    const sticker5 = document.getElementById('sticker-5');
+
+    // State flag: whether "No" should keep dodging. Starts true and only set false after Yes clicked.
+    let noShouldDodge = true;
+
+    /* ---------------------
+      Helper: show one screen, hide others
+      --------------------- */
+    function showScreen(screenEl) {
+      [welcomeScreen, consentScreen, closerScreen, finalScreen].forEach(el=>{
+        if(el === screenEl) {
+          el.classList.remove('hidden');
+          el.setAttribute('aria-hidden', 'false');
+        } else {
+          el.classList.add('hidden');
+          el.setAttribute('aria-hidden', 'true');
+        }
+      });
+      // scroll to top for mobile convenience
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    // Initially show welcome
+    showScreen(welcomeScreen);
+
+    /* ---------------------
+      Welcome -> Consent
+      --------------------- */
+    nextBtn.addEventListener('click', () => {
+      showScreen(consentScreen);
+    });
+
+    /* ---------------------
+      Consent: Yes behavior
+      - Clicking Yes stops the No button from dodging and proceeds to closer screen
+      --------------------- */
+    yesBtn.addEventListener('click', () => {
+      // Once user genuinely selects "Yes", the No button should stop evading permanently
+      noShouldDodge = false;
+
+      showScreen(closerScreen);
+    });
+
+    /* ---------------------
+      Consent: No behavior
+      - The "No" button will dodge on hover/click as long as noShouldDodge === true.
+      - If the user manages to click No (rare), show modal.
+      --------------------- */
+
+    (function setupNoButtonDodging(){
+      const container = document.getElementById('consentButtons');
+
+      // Calculate a good random position inside container for the No button
+      function pickPosition() {
+        const parentRect = container.getBoundingClientRect();
+        const btnRect = noBtn.getBoundingClientRect();
+
+        // Allowable area for the top-left of button inside container
+        const maxX = Math.max(6, parentRect.width - btnRect.width - 12);
+        const maxY = Math.max(6, parentRect.height - btnRect.height - 12);
+
+        // Choose a random position, but bias away from center to feel evasive
+        const cx = parentRect.width/2;
+        const cy = parentRect.height/2;
+
+        let x = Math.random() * maxX;
+        let y = Math.random() * maxY;
+
+        // bias: if near center, push outward
+        if(Math.abs(x - cx) < maxX*0.25) x += (x < cx ? -1 : 1) * (maxX*0.35);
+        if(Math.abs(y - cy) < maxY*0.18) y += (y < cy ? -1 : 1) * (maxY*0.22);
+
+        x = Math.max(6, Math.min(maxX, x));
+        y = Math.max(6, Math.min(maxY, y));
+
+        return {x, y};
+      }
+
+      // Move the No button to a new position (CSS transform)
+      function moveNo() {
+        if(!noShouldDodge) return; // stop dodging if flag is false
+        const pos = pickPosition();
+        noBtn.style.transform = `translate(${pos.x}px, ${pos.y}px)`;
+      }
+
+      // Set initial position when page loads
+      window.addEventListener('load', ()=>{
+        // mild offset to start
+        noBtn.style.transform = `translate(${container.clientWidth*0.25}px, ${container.clientHeight*0.08}px)`;
+      });
+
+      // Events that trigger the dodge
+      ['mouseenter', 'mousemove', 'touchstart', 'click', 'focus'].forEach(evt=>{
+        noBtn.addEventListener(evt, (e) => {
+          // Only dodge if flagged
+          if(noShouldDodge) {
+            // small delay to make movement feel organic
+            setTimeout(moveNo, 40);
+          }
+        }, {passive: true});
+      });
+
+      // If user actually clicks the no button (unlikely while dodging), open modal
+      noBtn.addEventListener('click', (e) => {
+        if(noShouldDodge) {
+          // still dodging: ensure modal is shown to explain they need to be ready
+          noModal.classList.remove('hidden');
+          noModal.style.display = 'flex';
+        }
+      });
+
+      // Ensure on resize the button remains within flow (small reposition)
+      window.addEventListener('resize', ()=>{
+        setTimeout(()=> {
+          if(noShouldDodge) moveNo();
+        }, 120);
+      });
+    })();
+
+    // Modal 'Got it' - dismiss modal
+    gotItBtn.addEventListener('click', () => {
+      noModal.classList.add('hidden');
+      noModal.style.display = 'none';
+    });
+
+    /* ---------------------
+      "Get Closer" Flow
+      - Two steps:
+        (1) I'm closer  -> change message + show "Even closer"
+        (2) Even closer  -> proceed to final screen
+      --------------------- */
+    let closerStep = 0;
+    closerBtn1.addEventListener('click', () => {
+      if(closerStep === 0) {
+        closerStep = 1;
+        closerMsg.innerHTML = 'A bit more closer... <span class="accent">✨</span>';
+        
+        // Update sticker for the second closer step
+        sticker4.src = 's5.png';
+        sticker4.alt = 'Getting closer sticker';
+
+        // replace button with second step
+        closerButtons.innerHTML = `<button id="closerBtn2" class="px-6 py-2 rounded-full bg-[#ffb86b] text-black font-semibold shadow hover:scale-[1.02] transition">Even closer</button>`;
+        // wire second button
+        document.getElementById('closerBtn2').addEventListener('click', () => {
+          // go to final screen
+          showScreen(finalScreen);
+        });
+      }
+    });
+
+    /* ---------------------
+      Final Reveal: set video src with autoplay and unmuted
+      --------------------- */
+    revealBtn.addEventListener('click', () => {
+      // show player container
+      playerWrap.classList.remove('hidden');
+      playerWrap.setAttribute('aria-hidden', 'false');
+
+      // Play the video and unmute it.
+      // The user's click gesture allows for this to work in browsers.
+      videoPlayer.play().then(() => {
+        videoPlayer.muted = false;
+      }).catch(error => {
+        console.error("Video play failed:", error);
+      });
+
+      // small reveal animation
+      const frame = document.getElementById('videoFrame');
+      frame.animate([{ transform: 'scale(.96)', opacity: 0 }, { transform: 'scale(1)', opacity: 1 }], { duration: 420, easing: 'cubic-bezier(.2,.9,.3,1)' });
+
+      // scroll to the video on mobile slightly
+      setTimeout(()=> {
+        const top = frame.getBoundingClientRect().top + window.scrollY - 80;
+        window.scrollTo({ top, behavior: 'smooth' });
+      }, 150);
+    });
+
+    /* ---------------------
+      Lightweight starfield canvas
+      --------------------- */
+    (function starfield(){
+      const canvas = document.getElementById('starfield');
+      if(!canvas) return;
+      const ctx = canvas.getContext('2d');
+      let w = canvas.width = innerWidth;
+      let h = canvas.height = innerHeight;
+      let stars = [];
+
+      function rand(min, max){ return Math.random() * (max - min) + min; }
+
+      function makeStars(n) {
+        stars = [];
+        for(let i=0;i<n;i++){
+          stars.push({
+            x: Math.random()*w,
+            y: Math.random()*h,
+            r: Math.random()*1.6+0.2,
+            vx: rand(-0.02, 0.02),
+            vy: rand(-0.02, 0.02),
+            twinkle: Math.random()*100
+          });
+        }
+      }
+
+      function resize() {
+        w = canvas.width = innerWidth;
+        h = canvas.height = innerHeight;
+        makeStars(Math.max(120, Math.floor((w*h)/10000)));
+      }
+
+      function draw() {
+        ctx.clearRect(0,0,w,h);
+        // subtle gradient for depth
+        const g = ctx.createLinearGradient(0,0,0,h);
+        g.addColorStop(0, 'rgba(6,8,20,0.0)');
+        g.addColorStop(1, 'rgba(2,4,10,0.12)');
+        ctx.fillStyle = g;
+        ctx.fillRect(0,0,w,h);
+
+        for(const s of stars){
+          s.x += s.vx;
+          s.y += s.vy;
+          s.twinkle += 0.6;
+          if(s.x < 0) s.x = w;
+          if(s.x > w) s.x = 0;
+          if(s.y < 0) s.y = h;
+          if(s.y > h) s.y = 0;
+
+          const alpha = 0.5 + Math.sin(s.twinkle*0.06) * 0.5;
+          ctx.beginPath();
+          ctx.fillStyle = `rgba(255,255,255,${alpha})`;
+          ctx.arc(s.x, s.y, s.r, 0, Math.PI*2);
+          ctx.fill();
+        }
+        requestAnimationFrame(draw);
+      }
+
+      window.addEventListener('resize', resize);
+      resize();
+      draw();
+    })();
+
+    /* ---------------------
+      Accessibility: keyboard activation
+      --------------------- */
+    nextBtn.addEventListener('keyup', (e) => { if(e.key === 'Enter') nextBtn.click(); });
+    revealBtn.addEventListener('keyup', (e) => { if(e.key === 'Enter') revealBtn.click(); });
+
+    // end of script
+  </script>
+</body>
+</html>
